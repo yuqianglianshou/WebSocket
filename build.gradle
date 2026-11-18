@@ -1,24 +1,12 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
-buildscript {
-    repositories {
-        google()
-        jcenter()
-    }
-    dependencies {
-        classpath "com.android.tools.build:gradle:4.0.2"
-
-        // NOTE: Do not place your application dependencies here; they belong
-        // in the individual module build.gradle files
-    }
+// 顶层构建脚本：只声明插件版本，具体配置放在各模块中
+plugins {
+    id 'com.android.application' version '8.13.2' apply false
+    id 'com.android.library' version '8.13.2' apply false
 }
 
-allprojects {
-    repositories {
-        google()
-        jcenter()
-    }
-}
-
-task clean(type: Delete) {
-    delete rootProject.buildDir
+// 所有模块共享的 SDK 版本，避免两端各写一份导致漂移
+ext {
+    compileSdk = 35
+    minSdk = 21
+    targetSdk = 35
 }

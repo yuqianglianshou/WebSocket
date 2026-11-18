@@ -1,76 +1,291 @@
-# WebSocket  局域网内组网通讯实现
+<div align="center">
 
- 本文无图片，详细请点击连接查看 [局域网内组网通讯实现](http://xiongzhoudadi.com/2020/11/android_websocket/)
+# WebSocket 局域网组网通讯
 
-收到需求：我们有一个教师用的app移动授课端，还有一个学生用来学习与上课的app学生端，现需要实现局域网下教师Pad控制学生Pad，教师端给学生端发送指令，学生端去响应，简单概括即局域网下的一对多通信。
+**不依赖服务器，在同一个 Wi-Fi 或热点下，让一台 Android 设备连接并管理几十台设备**
 
-本程序代码 [https://github.com/yuqianglianshou/WebSocket](https://github.com/yuqianglianshou/WebSocket)
+![Platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)
+![minSdk](https://img.shields.io/badge/minSdk-21-blue)
+![targetSdk](https://img.shields.io/badge/targetSdk-35-blue)
+![Java](https://img.shields.io/badge/Java-8-orange?logo=openjdk&logoColor=white)
+![Version](https://img.shields.io/badge/version-2.0-informational)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-注：本程序的核心代码来自 [https://github.com/szuwest/Recorder](https://github.com/szuwest/Recorder) 这位作者，请给他掌声。
+</div>
 
+一个用于 Android 局域网**一对多**通信的组网库，附带两个演示 App。
+主机通过 UDP 广播被自动发现，从机用 WebSocket 连接主机，之后双方可以收发文本和文件。
 
-我在他的基础上完善了些功能，增加了详细的注释，修改了一些bug。下面我给出这个项目完整的解释说明。
+项目最初用于课堂场景：教师 Pad（主机）向全班学生 Pad（从机）下发指令，学生端响应并回传结果。
+任何"一台主控 + 多台终端"的局域网场景都适用，例如会议投屏、展厅设备联动、门店多屏控制。
 
-需解决的核心问题：  
-1，局域网内的设备如何互相发现得到对方的ip地址？  
-2，如何建立连接，维护连接？
+> 文中「主机 / 教师端 / 服务端」指同一个角色，「从机 / 学生端 / 客户端」指另一个角色。
 
-原作者项目说明：
-最近在做一个应用，需要多个手机一起组网，一个充当主机，其他多个手机充当从机。主机跟每个从机之间可以相互通信，发送消息和文件。这不就是个CS（client-server）模式吗，只不过server不是在云端，只是在同一个局域网的手机上罢了。
+## 目录
 
-这里面有两个关键的地方，一个是如何发现同一个局域网内的手机客户端，包括自建的热点，一个是知道各个手机的Ip地址后，用什么方式来建立通信。这里说一下热点，手机开启热点之后，别的手机连上这个特点，其实也是一个小型局域网，只不过这个局域网稍微有点不一样（Ip地址），其他的都一样。
+- [截图](#截图)
+- [特性](#特性)
+- [快速开始](#快速开始)
+- [集成到你的项目](#集成到你的项目)
+- [工作原理](#工作原理)
+- [项目结构](#项目结构)
+- [注意事项](#注意事项)
+- [测试](#测试)
+- [路线图](#路线图)
+- [致谢](#致谢)
+- [许可证](#许可证)
 
-局域网发现 局域网发现主要难点在于如何得到对方Ip地址。我们的做法是发送UDP包。UDP协议是无面向连接的，也就是不需要像TCP协议那样提前建立连接。所以我们向局域网内某一个特定的端口广播UDP包，接收到这个包的人，发送回包，那么我们就知道彼此的存在和地址。
+## 截图
 
-那么关键地方是
+| 教师端（主机） | 学生端（从机） |
+| :---: | :---: |
+| <img src="docs/images/server.png" width="300" alt="教师端" /> | <img src="docs/images/client.png" width="300" alt="学生端" /> |
 
-有人一直在监听一个端口X，接收UDP包 有人在一直往这个端口X发送UDP包 监听端的人收到了UDP包后，就知道了发送者的Ip地址。但这时发送者是不知道接收者的，因为这是UDP包，无连接的状态的。那怎么做才让发送者也知道了。其实只要发过来再做一次就行。发送者同时也是监听者，这就行了。不过发送者A监听的是另一个端口Y，接收者B接收到包后，发送一个Y端口的包给A就行了。
+## 特性
 
-总结起来：
+- **零配置发现**：主机周期性 UDP 广播，从机自动找到同组主机，不需要手动输入 IP，开启顺序不分先后
+- **一对多通信**：支持群发和单发，支持文本和二进制文件（单个文件不超过 15MB），默认最多 80 台从机
+- **分组隔离**：按 `teamId + taskId` 分组，同一网络里的多个班级互不干扰，其他分组的设备会在握手阶段被拒绝
+- **稳定的长连接**：
+  - 断线检测：从机 ping/pong 心跳，主机自动清理失效连接
+  - 自动重连：指数退避加随机抖动，先直连上次的主机，失败后回到广播搜索
+  - 设备识别：按设备 ID 识别，同一台设备重连时新连接顶替旧连接
+  - 后台保活：组网期间持有 WifiLock，教师端运行在前台服务中，切到后台、锁屏都不会断线
+- **兼容 1.0**：端口、发现包格式与 1.0 一致，1.0 的从机仍然可以接入
+- **组网库与 UI 解耦**：组网库 `lan-core` 不依赖任何界面组件，所有回调都在主线程，可以直接接入业务 App
 
-主机监听端口X，一直发送Y端口的广播UDP包 从机监听端口Y，接收到UDP包后，往X端口发送UDP包。 这样就能双方知道对方的Ip地址了。发送的数据包也可以很讲究，例如发送json数据，可以自己定义一些字段，当接收者收到之后，解析数据，如果不符合规则的数据包直接丢弃掉。这就可以支撑一些业务逻辑了。
+## 快速开始
 
-广播地址
+### 环境要求
 
-广播地址是什么呢，一般都是用255.255.255.255，也有不用广播用组播地址例如192.168.43.255.这个组播地址就是热点的时候采用的地址，因为开启热点之后，那个手机的IP地址是固定的，是192.168.43.1其他端的手机都是这个地址后面的192.168.43.X。如果广播发送不了或者被禁掉了？一般来说还有一种方法，就是子网掩码里面的所有Ip地址遍历发一遍，这也是办法之一。
+- JDK 17 及以上
+- Android SDK（compileSdk 35）
+- 两台连接同一 Wi-Fi 或热点的 Android 5.0+ 设备。也可以把两个 App 装在同一台设备上联调
 
-一对多的通信 当知道对方的Ip地址后，一切都好办了。端对端的通信有挺多方法，一对多的通信也不少。如果要同时考虑在Android和iOS都好实现的话，其实可选的不是很多。
+### 构建与运行
 
-最保守的方法就是直接采用TCP协议建立sock来通信。在iOS端和Android端都有很好的socket库，不用担心能不能实现和兼容性问题。这个方案挺好但是缺点也明显，因为sock通信只定义了最基础的，消息格式要完全自己定制和实现，还多心跳之类的，这里的工作量还不少。也许还有少的框架实现了这些，但是要同时在iOS端和安卓端都有实现，我还真不知道有哪些。而且我的情景里最重要的是有一个主机在里面，所有的从机都跟主机通信，所以必须说要有一个server。
+```bash
+git clone https://github.com/yuqianglianshou/WebSocket.git
+cd WebSocket
+./gradlew assembleDebug
+```
 
-我后来采用的的WebSocket来实现。WebSocket在Android上有很多库，不过大多数都是client端的,包括了server端的有AndroidAsync,Java-Websocket。我采用的是AndroidAysnc。而iOS端可选择的就更少了。我在github上找了很多库，都是只支持client的，有支持server的都是很久很老的项目，找到一个采用swift写的叫Telegraph库，试用了起来，这个库实现得不是很好，有挺多问题，不尽如意。最终现在iOS端只有采用了Facebook的SocketRocket来作为client端，server端暂时没有好的实现。
+生成的两个 APK：
 
-采用WebSocket来实现双向通信有不少好处，例如它直接支持发送字符串消息，二进制数据（文件），还有连接上和断开都有相应的事件，还有ping-pong这种心跳机制，我觉得挺好的。iOS端的WebSocket server暂时没有找到可靠的第三方实现，比较遗憾。
+| 模块 | 说明 | APK 路径 |
+| --- | --- | --- |
+| `server` | 教师端（主机） | `server/build/outputs/apk/debug/server-debug.apk` |
+| `client` | 学生端（从机） | `client/build/outputs/apk/debug/client-debug.apk` |
 
+1. 在主机设备上安装教师端，在从机设备上安装学生端
+2. 两端分别打开状态卡片上的开关
+3. 通常 5 秒内完成连接：教师端显示在线人数和设备名，学生端显示"已连接教师端"
+4. 在底部输入框发送消息。教师端可以选择群发或单发，学生端可以点回形针图标发送文件
 
-上面是原作者的说明，表达明确，我再补充两句：  
-1，关于手机热点的功能我未验证，项目中代码有保留。  
-2，发送接收文件未验证，项目中代码有保留。  
-3，原作者将客户端和服务端代码放在了一个app里，我拆分成了两个app，即项目中有两个moudle，client和server，两台设备一台安装一端即可。  
-4，经测试，主机开启连接，客户端开启连接，不出意外5秒内两边连接，页面有连接信息显示，开启的顺序不分先后，都行，主机会一直搜索设备，其他从机都可连接，从机在连接后会关闭本机的搜索。  
-5，主机每隔5秒发送一次广播信息，用以搜索设备，这个5秒的时间可在程序中修改。可连接从机数量上限可定，项目中写死80台，原则上无上限，当连接数达到数量上限时，主机将拒绝接收从机连接请求。  
-6，经测试，多台从机同时连接主机没有问题。主机发消息会循环（保存了从机连接的）list，分别发送，从机都能收到消息，这里也可以只针对某一台从机发送消息，加判断即可。多台从机发消息主机都能收到。  
-7，本文以及程序中出现的主机，教师端，服务端是一个意思。从机，学生端，客户端是一个意思。  
-<br/>
-<br/>
-关键步骤截图如下：
-<br/>
-<br/>
+## 集成到你的项目
 
-主机，从机运行程序：
-<br/>
+### 1. 引入模块
 
-<br/>
-主机，从机开启连接
-<br/>
+`lan-core` 目前没有发布到 Maven 仓库。把 `lan-core` 目录复制到你的工程里，然后：
 
-<br/>
-主机，从机分别给对方发送了一条消息  
-<br/>
+```groovy
+// settings.gradle
+include ':lan-core'
 
-<br/>
-从机后台日志显示
+// app/build.gradle
+dependencies {
+    implementation project(':lan-core')
+}
+```
 
-<br/>
-<br/>
-以上亲测可用。
+`lan-core` 的依赖：OkHttp 4.12（从机）、Java-WebSocket 1.5.7（主机）。所需的网络权限会通过 Manifest 合并自动加入。
+
+### 2. 主机（教师端）
+
+```java
+MasterControlManager master = new MasterControlManager(context, LanConfig.defaults());
+master.setCallback(new MasterControlManager.Callback() {
+    @Override public void onRunningChanged(boolean running) { }
+    @Override public void onServerError(Exception e) { }
+    @Override public void onSlaveDiscovered(String ip, DiscoveryMessage info) { }
+    @Override public void onClientConnected(ClientInfo client, int total) { }
+    @Override public void onClientDisconnected(ClientInfo client, int total) { }
+    @Override public void onMessage(ClientInfo client, String message) { }
+    @Override public void onFileReceived(ClientInfo client, File file) { }
+});
+master.start();
+
+master.broadcast("上课了");                // 群发，返回送达的连接数
+master.sendTo(client.id, "请回答第 3 题");   // 单发，client 来自回调或 connectedClients()
+master.stop();
+master.release();                         // 宿主销毁时调用
+```
+
+> 建议把主机放在前台 Service 中，否则切到后台后进程可能被系统回收，全班随之断线。
+> 可以参考 `server` 模块的 [`MasterService`](server/src/main/java/com/lq/websocket/MasterService.java) 和 [`MasterSession`](server/src/main/java/com/lq/websocket/MasterSession.java)。
+
+### 3. 从机（学生端）
+
+```java
+SlaveControlManager slave = new SlaveControlManager(context, LanConfig.defaults());
+slave.setCallback(new SlaveControlManager.Callback() {
+    @Override public void onStateChanged(SlaveControlManager.State state, String masterIp) { }
+    @Override public void onMasterFound(String masterIp, DiscoveryMessage info) { }
+    @Override public void onMessage(String message) { }
+    @Override public void onRetryScheduled(long delayMs, Exception cause) { }
+});
+slave.start();             // 自动发现、连接、断线重连
+
+slave.send("收到");
+slave.sendBytes(bytes);    // 二进制数据，上限见 SlaveControlManager.maxSendBytes()
+slave.sendFile(file);
+slave.stop();
+slave.release();
+```
+
+从机的状态依次为 `IDLE → SEARCHING → CONNECTING → CONNECTED`，断线后进入 `WAITING`，按退避时间重试。
+
+### 4. 线程模型
+
+所有公开方法都应在**主线程**调用，所有回调也都在**主线程**执行，网络线程对调用方透明。
+管理器建议放在 ViewModel 或 Service 中，不要放在 Activity 里，否则旋转屏幕就会断开连接。
+
+### 配置项
+
+通过 `LanConfig.builder()` 修改，主从两端的分组、端口和子协议必须一致：
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `teamId` / `taskId` | `Speakin` / `Test` | 分组标识，两者都相同才能互相发现和连接 |
+| `wsPort` | `8880` | 主机 WebSocket 端口 |
+| `wsProtocol` | `speakinchat` | WebSocket 子协议 |
+| `masterListenPort` | `8882` | 主机接收从机 UDP 回复的端口 |
+| `slaveListenPort` | `8883` | 从机接收主机 UDP 广播的端口 |
+| `broadcastIntervalMs` | `5000` | 主机广播间隔 |
+| `maxSlaves` | `80` | 最大从机数量，满员时拒绝新连接 |
+| `heartbeatIntervalMs` | `10000` | 从机 ping 间隔，按时收不到 pong 即判定断线 |
+| `heartbeatTimeoutMs` | `30000` | 主机清理无响应连接的超时时间 |
+| `reconnectDelayMs` | `2000` | 重连退避的基础时长，上限 30s |
+
+```java
+LanConfig config = LanConfig.builder()
+        .teamId("Grade3")
+        .taskId("Class2")
+        .maxSlaves(50)
+        .build();
+```
+
+## 工作原理
+
+### 通信流程
+
+```mermaid
+sequenceDiagram
+    participant M as 主机（教师端）
+    participant S as 从机（学生端）
+
+    loop 每 5 秒
+        M-)S: UDP 广播 → :8883 {"type":"master", teamId, taskId, port: 8880}
+    end
+    Note over S: 只响应同组的主机
+    S-)M: UDP 单播 → :8882 {"type":"slave", teamId, taskId, deviceName}
+    S->>M: WebSocket 握手 ws://主机IP:8880<br/>子协议 + 设备 ID / 设备名 / 分组
+    alt 分组不符或已满
+        M-->>S: 拒绝握手，从机进入长退避
+    else 校验通过
+        M-->>S: 101 Switching Protocols
+    end
+    loop 每 10 秒
+        S->>M: ping
+        M-->>S: pong
+    end
+    M->>S: 群发 / 单发文本
+    S->>M: 文本 / 二进制文件
+```
+
+1. **发现**：UDP 是无连接的，接收方收到广播后就知道了发送方的 IP。主机向 `255.255.255.255` 和每个网卡的定向广播地址（例如热点网段 `192.168.43.255`）发送广播，不依赖某一种网络环境
+2. **回应**：从机校验分组后，向主机单播回复。主机由此得知从机的存在，从机也拿到了主机的 IP 和 WebSocket 端口
+3. **握手**：从机发起 WebSocket 连接，握手请求头里带上设备身份和分组。主机在握手阶段完成校验，被拒绝的从机会收到明确的失败，而不是"连上后又被断开"
+4. **保活**：从机定时 ping，能较快发现 Wi-Fi 静默断开。主机清理长时间无响应的连接
+5. **重连**：断线后按指数退避重试（2s 起，上限 30s，±20% 抖动），避免几十台设备同时冲击主机。前两次直连上次的主机，之后回到 UDP 搜索
+
+### 握手约定
+
+| 请求头 | 说明 |
+| --- | --- |
+| `Sec-WebSocket-Protocol` | 子协议，必须与主机一致 |
+| `X-Lan-Device-Id` | 设备唯一 ID，首次启动时随机生成并持久化。同一 IP 下有多台设备（例如经过 NAT）时也能区分 |
+| `X-Lan-Device-Name` | 设备名，URL 编码，支持中文 |
+| `X-Lan-Team` / `X-Lan-Task` | 分组，不符时拒绝握手 |
+
+以上请求头都是可选的，缺失时（例如 1.0 的从机）主机退回到按 IP 识别设备。
+
+| 关闭码 | 含义 |
+| --- | --- |
+| `1013` | 主机已满（Try Again Later） |
+| `4001` | 被同一设备的新连接顶替 |
+
+## 项目结构
+
+```
+WebSocket/
+├── lan-core/      组网库（无 UI），主从机逻辑都在这里
+│   ├── LanConfig / LanProtocol   可调参数 / 握手约定
+│   ├── discovery/                UDP 发现：DiscoveryMessage、UdpSender/Receiver、Master/SlaveDiscovery
+│   ├── master/                   MasterServer（Java-WebSocket）、MasterControlManager（门面）、ClientInfo
+│   ├── slave/                    SlaveClient（OkHttp）、SlaveControlManager（状态机 + 退避重连）
+│   └── net/                      NetUtils、WifiLocks、DeviceIdentity
+├── app-common/    两个演示 App 共用的 UI：Material 3 主题、消息列表、状态卡片、全面屏适配
+├── server/        教师端：MasterService（前台服务）、MasterSession（进程级状态）、ViewModel、Activity
+└── client/        学生端：SlaveViewModel、Activity
+```
+
+分层：`Activity → ViewModel → ControlManager → 网络层`。
+
+- Activity 只负责渲染和转发用户操作
+- ViewModel 持有界面状态（LiveData），旋转屏幕、切换深色模式不会断开连接
+- 教师端的管理器放在进程级的 `MasterSession` 中，由前台服务 `MasterService`（类型 `connectedDevice`）承载。退出页面后服务仍在运行，通知栏显示在线人数和本机 IP，可以从通知栏停止服务
+
+技术选型：OkHttp 只提供 WebSocket 客户端，所以从机使用 OkHttp 4.12，主机使用纯 Java 实现的 Java-WebSocket 1.5.7。
+
+## 注意事项
+
+- **明文连接**：局域网通信使用 `ws://`。OkHttp 遵守系统的网络安全策略，targetSdk ≥ 28 时默认禁止明文连接，
+  所以 `lan-core` 在 Manifest 中声明了 `usesCleartextTraffic="true"`。局域网 IP 不固定，无法用 network-security-config 按网段放行。
+  如果需要加密，请改用 `wss://`
+- **通知权限**：Android 13+ 首次开启教师端服务时会请求通知权限。拒绝也不影响服务运行，只是看不到常驻通知
+- **网络环境**：部分企业或公共 Wi-Fi 开启了 AP 隔离，或者屏蔽了广播，设备之间无法互相发现。这时请改用手机热点或普通家用路由器
+- **文件接收位置**：主机收到的文件保存在 `Android/data/<包名>/files/receive/` 目录，不需要存储权限
+
+## 测试
+
+```bash
+./gradlew :lan-core:testDebugUnitTest
+```
+
+测试会在 JVM 上启动真实的 WebSocket 服务端和客户端，覆盖：
+
+- 发现包的编解码与分组校验
+- 双向文本 / 二进制收发，中文设备名
+- 子协议不符、分组不符、满员时拒绝握手
+- 同一设备重连时顶替旧连接
+- 连接失败、对端关闭、主动关闭时的回调
+- 退避策略、网卡优先级
+
+## 路线图
+
+- [x] 主机运行在前台服务中，切到后台不断线
+- [ ] 大文件分片传输与断点续传，携带文件名等元数据
+- [ ] 定义带 `type` / `id` 的 JSON 消息信封，支持 ACK 与超时重发
+- [ ] 学生端前台服务（按需）
+- [ ] 将 `lan-core` 发布到 Maven 仓库
+
+版本变化见 [CHANGELOG.md](CHANGELOG.md)。
+
+## 致谢
+
+- 1.0 基于 [szuwest/Recorder](https://github.com/szuwest/Recorder) 修改，「UDP 发现 + WebSocket 通信」的思路来自原作者，感谢分享。2.0 的代码已全部重写
+
+## 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 品牌色：沿用 1.0 的蓝色 #2C5EF4，按 Material 3 色彩角色展开 -->
+    <color name="lan_primary">#2C5EF4</color>
+    <color name="lan_on_primary">#FFFFFF</color>
+    <color name="lan_primary_container">#DCE1FF</color>
+    <color name="lan_on_primary_container">#00164E</color>
+    <color name="lan_secondary_container">#DDE1F9</color>
+    <color name="lan_on_secondary_container">#151B2C</color>
+
+    <!-- 与品牌蓝匹配的中性色，替换 Material 3 默认偏紫的基础色板 -->
+    <color name="lan_surface">#FAF8FF</color>
+    <color name="lan_on_surface">#1A1B21</color>
+    <color name="lan_surface_variant">#E2E1EC</color>
+    <color name="lan_on_surface_variant">#45464F</color>
+    <color name="lan_surface_container_lowest">#FFFFFF</color>
+    <color name="lan_surface_container_low">#F4F3FA</color>
+    <color name="lan_surface_container">#EEEDF4</color>
+    <color name="lan_surface_container_high">#E8E7EF</color>
+    <color name="lan_surface_container_highest">#E3E2E9</color>
+    <color name="lan_outline">#767680</color>
+    <color name="lan_outline_variant">#C6C5D0</color>
+
+    <color name="lan_status_idle">#8E9099</color>
+    <color name="lan_status_working">#2C5EF4</color>
+    <color name="lan_status_ok">#1E8E3E</color>
+    <color name="lan_status_warn">#E37400</color>
+    <color name="lan_status_error">#D93025</color>
+</resources>

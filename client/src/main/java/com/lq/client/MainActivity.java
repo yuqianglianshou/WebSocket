@@ -1,151 +1,117 @@
 package com.lq.client;
 
-
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.TextUtils;
-import android.util.Log;
+import android.text.TextWatcher;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
-import android.widget.CheckBox;
-import android.widget.CompoundButton;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
-import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.RecyclerView;
 
-import com.lq.client.control.SlaveControlManager;
-import com.lq.client.utils.DateUtil;
-import com.lq.client.utils.IpUtil;
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.textfield.TextInputLayout;
+import com.lq.lan.slave.SlaveControlManager.State;
+import com.lq.lan.ui.LanUi;
+import com.lq.lan.ui.LogAdapter;
+import com.lq.lan.ui.StatusCard;
 
-import org.json.JSONObject;
-
-
+/** 学生端（从机）页面：只做渲染与转发用户操作，状态在 SlaveViewModel，组网逻辑在 lan-core */
 public class MainActivity extends AppCompatActivity {
 
-    private static final String TAG = "lq_client";
-    private TextView tv_ip;
-    private TextView textView2;
-    private CheckBox checkBox;
-    private SlaveControlManager slaveControlManager;
-    private EditText editText;
+    private SlaveViewModel vm;
+    private EditText input;
+    private Button send;
+    private Button attach;
+
+    private final ActivityResultLauncher<String> pickFile =
+            registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
+                if (uri != null) vm.sendFile(uri);
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        LanUi.setupEdgeToEdge(this, findViewById(R.id.root));
 
-        tv_ip = findViewById(R.id.tv_ip);
-        textView2 = findViewById(R.id.textView2);
-        checkBox = findViewById(R.id.checkbox);
-        editText = findViewById(R.id.et_message);
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        StatusCard statusCard = new StatusCard(findViewById(R.id.status));
+        RecyclerView logList = findViewById(R.id.log_list);
+        TextView logEmpty = findViewById(R.id.log_empty);
+        TextInputLayout inputLayout = findViewById(com.lq.lan.ui.R.id.lan_input_layout);
+        input = findViewById(com.lq.lan.ui.R.id.lan_input);
+        send = findViewById(com.lq.lan.ui.R.id.lan_send);
+        attach = findViewById(com.lq.lan.ui.R.id.lan_attach);
+        LogAdapter logAdapter = LanUi.setupLogList(logList);
+        inputLayout.setHint(R.string.hint_send);
+        attach.setVisibility(View.VISIBLE);
 
-        initData();
-        initView();
+        vm = new ViewModelProvider(this).get(SlaveViewModel.class);
 
-        refreshIP();
+        // 开关表示「是否希望保持连接」，断线后自动重连，开关保持开启
+        statusCard.setOnToggleListener(vm::setEnabled);
+        send.setOnClickListener(v -> send());
+        attach.setOnClickListener(v -> pickFile.launch("*/*"));
+        LanUi.onImeSend(input, this::send);
+        input.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) { updateEnabled(); }
+        });
+
+        vm.localIp().observe(this, ip -> toolbar.setSubtitle(ip == null
+                ? getString(com.lq.lan.ui.R.string.lan_ip_none)
+                : getString(com.lq.lan.ui.R.string.lan_ip_format, ip)));
+        vm.status().observe(this, statusCard::render);
+        vm.state().observe(this, s -> {
+            statusCard.setToggleChecked(s != State.IDLE);
+            updateEnabled();
+        });
+        vm.log().observe(this, list -> {
+            logEmpty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
+            LanUi.submitLog(logList, logAdapter, list);
+        });
     }
 
-
-    private void refreshIP() {
-        String ip = IpUtil.getHostIP();
-
-        tv_ip.setText("本机IP: " + ip);
+    private boolean connected() {
+        return vm.state().getValue() == State.CONNECTED;
     }
 
-    private StringBuilder stringBuilder = new StringBuilder();
-
-    private void initData() {
-        slaveControlManager = new SlaveControlManager();
-
-        slaveControlManager.setControlManagerCallback(new SlaveControlManager.SlaveControlManagerCallback() {
-            @Override
-            public void onFoundMaster(String masterIp, JSONObject masterInfo) {
-                stringBuilder.append("发现主机：" + masterIp + " " + masterInfo.toString() + "\n");
-                textView2.setText(stringBuilder.toString());
-            }
-
-            //主机连接成功回调
-            @Override
-            public void onConnectedMaster(String masterIp, Exception ex) {
-
-                stringBuilder.append("主机已连接：" + masterIp + "\n");
-                textView2.setText(stringBuilder.toString());
-            }
-
-            @Override
-            public void onDisconnectMaster(String masterIp, Exception ex) {
-                slaveControlManager.stop();
-                checkBox.setChecked(false);
-                stringBuilder.append("主机失去连接：" + masterIp + "\n");
-                textView2.setText(stringBuilder.toString());
-            }
-
-            @Override
-            public void onReceiveMessage(String message) {
-                Log.i(TAG, "onMessageReceive: message == " + message);
-                stringBuilder.append(message + "\n");
-                textView2.setText(stringBuilder.toString());
-            }
-        });
-
-
+    private void send() {
+        String text = input.getText() == null ? "" : input.getText().toString().trim();
+        if (TextUtils.isEmpty(text) || !connected()) return;
+        if (vm.send(text)) input.setText(null);
     }
 
-    private void initView() {
-        tv_ip.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                refreshIP();
-            }
-        });
-
-        //  清空显示信息
-        findViewById(R.id.btn_clear).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                stringBuilder.delete(0, stringBuilder.length());
-                textView2.setText(stringBuilder);
-
-
-            }
-        });
-        //发送信息
-        findViewById(R.id.btn_send).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-                if (!checkBox.isChecked()) {
-                    Toast.makeText(MainActivity.this, "未建立连接", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                if (TextUtils.isEmpty(editText.getText())) {
-                    slaveControlManager.send("Hello, I am client ：" + DateUtil.getNowDate());
-                } else {
-                    slaveControlManager.send(editText.getText().toString() + DateUtil.getNowDate());
-                }
-
-
-            }
-        });
-
-        checkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked) {
-                    slaveControlManager.start();
-                } else {
-                    slaveControlManager.stop();
-                }
-            }
-        });
-
+    private void updateEnabled() {
+        boolean ok = connected();
+        attach.setEnabled(ok);
+        send.setEnabled(ok && input.getText() != null && input.getText().toString().trim().length() > 0);
     }
-
 
     @Override
-    protected void onDestroy() {
-        slaveControlManager.stop();
-        super.onDestroy();
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(com.lq.lan.ui.R.menu.lan_main, menu);
+        return true;
+    }
 
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == com.lq.lan.ui.R.id.lan_action_clear) {
+            vm.clearLog();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 }

@@ -1,3 +1,34 @@
 <resources>
-    <string name="app_name">server</string>
+    <string name="app_name">教师端</string>
+
+    <string name="status_idle">服务未启动</string>
+    <string name="status_idle_detail">打开开关后开始广播；切到后台也保持在线，可在通知栏停止</string>
+    <string name="status_waiting">等待学生端加入</string>
+    <string name="status_running">%1$d 台学生端在线</string>
+    <string name="status_running_detail">上限 %1$d 台 · 端口 %2$d</string>
+    <string name="status_error">服务启动失败</string>
+
+    <string name="target_label">发送给</string>
+    <string name="target_all">全部 (%1$d)</string>
+    <string name="hint_all">群发给全部学生端</string>
+    <string name="hint_single">发给 %1$s</string>
+
+    <string name="log_started">服务已启动，正在广播</string>
+    <string name="log_stopped">服务已停止</string>
+    <string name="log_discovered">发现学生端 %1$s</string>
+    <string name="log_connected">%1$s 已连接</string>
+    <string name="log_disconnected">%1$s 已断开</string>
+    <string name="log_error">服务异常：%1$s</string>
+    <string name="log_file">收到文件 %1$s（%2$s）\n%3$s</string>
+    <string name="log_to_all">全部 %1$d 台</string>
+    <string name="log_send_failed">发送失败：%1$s 已离线</string>
+    <string name="log_no_client">当前没有在线的学生端</string>
+
+    <string name="error_foreground">无法启动前台服务：%1$s</string>
+
+    <string name="notif_channel">课堂服务</string>
+    <string name="notif_channel_desc">教师端服务运行期间的常驻通知</string>
+    <string name="notif_title">课堂服务运行中</string>
+    <string name="notif_text_with_ip">%1$s · %2$s</string>
+    <string name="notif_stop">停止</string>
 </resources>

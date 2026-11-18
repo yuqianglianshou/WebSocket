@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="lan_primary">#B6C4FF</color>
+    <color name="lan_on_primary">#00287D</color>
+    <color name="lan_primary_container">#0F3FD0</color>
+    <color name="lan_on_primary_container">#DCE1FF</color>
+    <color name="lan_secondary_container">#414659</color>
+    <color name="lan_on_secondary_container">#DDE1F9</color>
+
+    <!-- 与品牌蓝匹配的中性色，替换 Material 3 默认偏紫的基础色板 -->
+    <color name="lan_surface">#121318</color>
+    <color name="lan_on_surface">#E3E1E9</color>
+    <color name="lan_surface_variant">#45464F</color>
+    <color name="lan_on_surface_variant">#C6C5D0</color>
+    <color name="lan_surface_container_lowest">#0D0E13</color>
+    <color name="lan_surface_container_low">#1A1B21</color>
+    <color name="lan_surface_container">#1E1F25</color>
+    <color name="lan_surface_container_high">#292A2F</color>
+    <color name="lan_surface_container_highest">#34343A</color>
+    <color name="lan_outline">#90909A</color>
+    <color name="lan_outline_variant">#45464F</color>
+
+    <color name="lan_status_idle">#8E9099</color>
+    <color name="lan_status_working">#B6C4FF</color>
+    <color name="lan_status_ok">#81C995</color>
+    <color name="lan_status_warn">#FDD663</color>
+    <color name="lan_status_error">#F28B82</color>
+</resources>

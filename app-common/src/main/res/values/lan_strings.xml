@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lan_send">发送</string>
+    <string name="lan_attach">发送文件</string>
+    <string name="lan_clear_log">清空消息</string>
+    <string name="lan_ip_format">本机 IP：%1$s</string>
+    <string name="lan_ip_none">未连接网络</string>
+    <string name="lan_empty_log">暂无消息</string>
+    <string name="lan_toggle">连接</string>
+    <string name="lan_message_hint">输入消息</string>
+    <string name="lan_meta_format">%1$s · %2$s</string>
+    <string name="lan_system_format">%1$s  %2$s</string>
+</resources>

@@ -1,146 +1,167 @@
 package com.lq.websocket;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.TextUtils;
-import android.util.Log;
+import android.text.TextWatcher;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
-import android.widget.CheckBox;
-import android.widget.CompoundButton;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
-import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.RecyclerView;
 
-import com.lq.websocket.control.MasterControlManager;
-import com.lq.websocket.utils.DateUtil;
-import com.lq.websocket.utils.IpUtil;
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.textfield.TextInputLayout;
+import com.lq.lan.master.ClientInfo;
+import com.lq.lan.ui.LanUi;
+import com.lq.lan.ui.LogAdapter;
+import com.lq.lan.ui.StatusCard;
 
+import java.util.List;
+
+/** 教师端（主机）页面：只做渲染与转发用户操作；服务由前台 MasterService 承载，退出页面不会断开学生端 */
 public class MainActivity extends AppCompatActivity {
 
-    private static final String TAG = "lq_server";
-    private TextView tv_ip;
-    private TextView textView2;
-    private CheckBox checkBox;
-    private MasterControlManager masterControlManager;
-    private EditText editText;
+    private MasterViewModel vm;
+    private MaterialToolbar toolbar;
+    private StatusCard statusCard;
+    private View targetBar;
+    private ChipGroup targetChips;
+    private RecyclerView logList;
+    private LogAdapter logAdapter;
+    private TextView logEmpty;
+    private TextInputLayout inputLayout;
+    private EditText input;
+    private Button send;
+    /** 程序化重建 chips 时屏蔽选择回调 */
+    private boolean bindingChips;
+    /** 通知权限只影响常驻通知是否可见，不影响服务运行，所以不等待授权结果 */
+    private final ActivityResultLauncher<String> notificationPermission =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> { });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        LanUi.setupEdgeToEdge(this, findViewById(R.id.root));
 
-        tv_ip = findViewById(R.id.tv_ip);
-        textView2 = findViewById(R.id.textView2);
-        checkBox = findViewById(R.id.checkbox);
-        editText = findViewById(R.id.et_message);
+        toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        statusCard = new StatusCard(findViewById(R.id.status));
+        targetBar = findViewById(R.id.target_bar);
+        targetChips = findViewById(R.id.target_chips);
+        logList = findViewById(R.id.log_list);
+        logEmpty = findViewById(R.id.log_empty);
+        inputLayout = findViewById(com.lq.lan.ui.R.id.lan_input_layout);
+        input = findViewById(com.lq.lan.ui.R.id.lan_input);
+        send = findViewById(com.lq.lan.ui.R.id.lan_send);
+        logAdapter = LanUi.setupLogList(logList);
 
-        initData();
-        initView();
+        vm = new ViewModelProvider(this).get(MasterViewModel.class);
 
-        refreshIP();
-    }
-
-
-    private void refreshIP() {
-        String ip = IpUtil.getHostIP();
-
-        tv_ip.setText("本机IP: " + ip);
-    }
-
-    private StringBuilder stringBuilder = new StringBuilder();
-
-    private void initData() {
-        masterControlManager = new MasterControlManager();
-        masterControlManager.setControlManagerCallback(new MasterControlManager.MasterControlManagerCallback() {
-            @Override
-            public void onServerError(Exception ex) {
-                textView2.setText("server error: " + ex.getLocalizedMessage());
-            }
-
-            @Override
-            public void onClientConnected(String clientSocket) {
-                stringBuilder.append(clientSocket + "  客户端连接 \n");
-                textView2.setText(stringBuilder.toString());
-            }
-
-            @Override
-            public void onClientDisconnect(String clientSocket) {
-                stringBuilder.append(clientSocket + " 客户端 失去连接 \n");
-                textView2.setText(stringBuilder.toString());
-            }
-
-            //接收客户端消息
-            @Override
-            public void onMessageReceive(String clientSocket, String message) {
-                Log.i(TAG, "onMessageReceive: clientSocket == " + clientSocket);
-                Log.i(TAG, "onMessageReceive: message == " + message);
-                stringBuilder.append(clientSocket + ":" + message + "\n");
-                textView2.setText(stringBuilder.toString());
-            }
-
-            @Override
-            public void onReceiveFile(String clientSocket, String filePath) {
-                Toast.makeText(MainActivity.this, "receive file" + filePath, Toast.LENGTH_SHORT).show();
-            }
+        statusCard.setOnToggleListener(on -> {
+            if (on) requestNotificationPermission();
+            vm.setRunning(on);
+        });
+        send.setOnClickListener(v -> send());
+        LanUi.onImeSend(input, this::send);
+        input.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) { updateSendEnabled(); }
+        });
+        targetChips.setOnCheckedStateChangeListener((group, ids) -> {
+            if (bindingChips || ids.isEmpty()) return;
+            Object tag = group.findViewById(ids.get(0)).getTag();
+            vm.setTarget(tag instanceof String ? (String) tag : null);
         });
 
-
-    }
-
-    private void initView() {
-        tv_ip.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                refreshIP();
-            }
+        vm.localIp().observe(this, ip -> toolbar.setSubtitle(ip == null
+                ? getString(com.lq.lan.ui.R.string.lan_ip_none)
+                : getString(com.lq.lan.ui.R.string.lan_ip_format, ip)));
+        vm.status().observe(this, statusCard::render);
+        vm.running().observe(this, on -> {
+            statusCard.setToggleChecked(on);
+            updateSendEnabled();
         });
-
-        /**
-         * 清空显示
-         */
-        findViewById(R.id.btn_clear).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                stringBuilder.delete(0, stringBuilder.length());
-                textView2.setText(stringBuilder);
-
-            }
+        vm.clients().observe(this, this::renderTargets);
+        vm.target().observe(this, id -> {
+            renderTargets(vm.clients().getValue());
+            ClientInfo c = vm.targetClient();
+            inputLayout.setHint(c == null ? getString(R.string.hint_all) : getString(R.string.hint_single, c.name));
         });
-        /**
-         * 发消息
-         */
-        findViewById(R.id.btn_send).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (!checkBox.isChecked()) {
-                    Toast.makeText(MainActivity.this, "未建立连接", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                if (TextUtils.isEmpty(editText.getText())) {
-                    masterControlManager.send("Hello, I am server ：" + DateUtil.getNowDate());
-                } else {
-                    masterControlManager.send(editText.getText().toString() + "  " + DateUtil.getNowDate());
-                }
-            }
-        });
-        checkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked) {
-                    masterControlManager.start();
-                } else {
-                    masterControlManager.stop();
-                }
-            }
+        vm.log().observe(this, list -> {
+            logEmpty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
+            LanUi.submitLog(logList, logAdapter, list);
         });
     }
 
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this,
+                Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS);
+        }
+    }
+
+    private void send() {
+        String text = input.getText() == null ? "" : input.getText().toString().trim();
+        if (TextUtils.isEmpty(text)) return;
+        if (vm.send(text)) input.setText(null);
+    }
+
+    private void updateSendEnabled() {
+        boolean running = Boolean.TRUE.equals(vm.running().getValue());
+        send.setEnabled(running && input.getText() != null && input.getText().toString().trim().length() > 0);
+    }
+
+    private void renderTargets(List<ClientInfo> clients) {
+        if (clients == null) return;
+        targetBar.setVisibility(clients.isEmpty() ? View.GONE : View.VISIBLE);
+        String selected = vm.target().getValue();
+        bindingChips = true;
+        targetChips.removeAllViews();
+        targetChips.addView(chip(getString(R.string.target_all, clients.size()), null, selected == null));
+        for (ClientInfo c : clients) {
+            targetChips.addView(chip(c.name, c.id, c.id.equals(selected)));
+        }
+        bindingChips = false;
+    }
+
+    private Chip chip(String text, String tag, boolean checked) {
+        Chip chip = (Chip) getLayoutInflater().inflate(R.layout.item_target_chip, targetChips, false);
+        chip.setId(View.generateViewId());
+        chip.setText(text);
+        chip.setTag(tag);
+        chip.setChecked(checked);
+        return chip;
+    }
 
     @Override
-    protected void onDestroy() {
-        masterControlManager.stop();
-        super.onDestroy();
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(com.lq.lan.ui.R.menu.lan_main, menu);
+        return true;
+    }
 
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == com.lq.lan.ui.R.id.lan_action_clear) {
+            vm.clearLog();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 }

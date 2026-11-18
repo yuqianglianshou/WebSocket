@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 部分机型在灭屏/省电时会过滤 UDP 广播包，需要持有 MulticastLock -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- WifiLock 需要 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
+        局域网内使用 ws:// 明文连接。OkHttp 遵守系统网络安全策略，targetSdk >= 28 默认禁止明文，
+        不声明会直接报 "CLEARTEXT communication not permitted"。
+        局域网 IP 不固定，network-security-config 无法按网段放行，只能整体允许；
+        如需加密请改用 wss:// 并为主机配置证书。
+    -->
+    <application
+        android:usesCleartextTraffic="true"
+        tools:targetApi="23" />
+
+</manifest>

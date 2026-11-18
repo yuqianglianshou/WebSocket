@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material 3 日夜主题，两个 App 共用 -->
+    <style name="Theme.Lan" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/lan_primary</item>
+        <item name="colorOnPrimary">@color/lan_on_primary</item>
+        <item name="colorPrimaryContainer">@color/lan_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/lan_on_primary_container</item>
+        <item name="colorSecondaryContainer">@color/lan_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/lan_on_secondary_container</item>
+        <item name="android:colorBackground">@color/lan_surface</item>
+        <item name="colorSurface">@color/lan_surface</item>
+        <item name="colorOnSurface">@color/lan_on_surface</item>
+        <item name="colorSurfaceVariant">@color/lan_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/lan_on_surface_variant</item>
+        <item name="colorSurfaceContainerLowest">@color/lan_surface_container_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/lan_surface_container_low</item>
+        <item name="colorSurfaceContainer">@color/lan_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/lan_surface_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/lan_surface_container_highest</item>
+        <item name="colorOutline">@color/lan_outline</item>
+        <item name="colorOutlineVariant">@color/lan_outline_variant</item>
+    </style>
+</resources>

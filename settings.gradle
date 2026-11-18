@@ -1,3 +1,21 @@
-include ':client'
-include ':server'
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
 rootProject.name = "WebSocket"
+include ':lan-core'
+include ':app-common'
+include ':server'
+include ':client'

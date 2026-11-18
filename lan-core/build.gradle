@@ -1,0 +1,35 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'com.lq.lan'
+    compileSdk rootProject.ext.compileSdk
+
+    defaultConfig {
+        minSdk rootProject.ext.minSdk
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    testOptions {
+        // 单元测试中用到 org.json / Log 时返回默认值而不是抛异常
+        unitTests.returnDefaultValues = true
+    }
+}
+
+dependencies {
+    // 版本固定，禁止使用 2.+ 这种动态版本，保证构建可复现
+    // 从机：OkHttp WebSocket 客户端
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    // 主机：OkHttp 不提供服务端，使用 Java-WebSocket
+    implementation 'org.java-websocket:Java-WebSocket:1.5.7'
+    implementation 'androidx.annotation:annotation:1.3.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+}
